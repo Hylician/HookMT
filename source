@@ -1,0 +1,163 @@
+if type(getgenv().HookMT) == "table" then
+	return
+end
+
+getgenv().HookMT = {
+	["Hooks"] = {
+		["__index"] = {},
+		["__namecall"] = {},
+		["__locked"] = {},
+		["__newindex"] = {}
+	},
+	["Events"] = {},
+	["Loaded"] = type(HookMT) == "table" and HookMT["Loaded"] or false
+}
+
+setmetatable(getgenv().HookMT, {
+	["__metatable"] = "Fuck off"
+})
+
+if getgenv().HookMT["Loaded"] then
+	return print("< HookMT is already loaded >")
+end
+
+getgenv().HookMT["Loaded"] = true
+local getEmpty = function()
+	return
+end
+
+local _getEmpty = getEmpty
+
+local OldIndex
+OldIndex = hookmetamethod(game, "__index", newcclosure(function(self, Index)
+	local __IndexHooks = rawget(rawget(getgenv().HookMT, "Hooks"), "__index")
+	local __LockedHooks = rawget(rawget(getgenv().HookMT, "Hooks"), "__locked")
+	if checkcaller() then
+		local Index = tostring(Index) or nil
+		if Index then
+			local Index = string.lower(Index)
+			if Index == "hook" then
+				return function(String, Function)
+					if type(Function) == "nil" then
+						return "The second argument must be included!"
+					end
+
+					rawset(__IndexHooks, self, {self, String, Function})
+					return string.format("Successfully hooked! All __index calls on %s will be logged! To unhook/stop logging just do: %s:unhook()\n|| Arguments Passed: \n    (query -> function, self -> Object being hooked, Index -> self[Index], defaultValue -> a function, will return the value of self[Index] , ... -> extra_arguments)\n-------------------------------------------------------------", (type(self) == "table") and "table: 0x18fxf23510" or tostring(self), (type(self) == "table") and "table: 0x18fxf23510" or tostring(self))
+				end
+			elseif Index == "removehook" or Index == "unhook" then
+				return function()
+					rawset(__IndexHooks, self, nil)
+					return string.format("Successfully unhooked __index logs for %s! ", (type(self) == "table") and "table: 0x18fxf23510" or tostring(self))
+				end
+			elseif Index == "lock" then
+				return function(String, Function)
+					if type(Function) == "nil" then
+						return "The second argument must be included!"
+					end
+
+					rawset(__LockedHooks, self, {self, String, Function})
+					return ("Successfully locked those calls to that value")
+				end
+			elseif Index == "removelock" or Index == "unlock" then
+				return function()
+					rawset(__LockedHooks, self, nil)
+					return "Successfully unlocked!"
+				end
+			end
+		end
+	end
+
+	local IsHooked = rawget(__IndexHooks, self)
+	if type(IsHooked) == "table" and IsHooked[1] and type(IsHooked[2]) == "string" and type(IsHooked[3]) ~= "nil" and typeof(self) == "Instance" and typeof(IsHooked[1]) == "Instance" and (self == IsHooked[1]) and string.lower(string.format("%s.%s", IsHooked[1]:GetFullName(), IsHooked[2])) == string.lower(string.format("%s.%s", self:GetFullName(), tostring(typeof(Index) == "Instance" and Index:GetFullName() or Index))) then
+		if type(IsHooked[3]) == "function" then
+			local EndResult = nil
+			local Success, Result = pcall(IsHooked[3], function(...)
+				EndResult = {...}
+			end, self, Index, function()
+				return (OldIndex)(self, Index)
+			end)
+
+			if Success and type(Result) ~= "nil" and Result ~= (function()
+					return 
+				end)() then
+				return Result
+			end
+
+			if type(EndResult) == "table" then
+				return table.unpack(EndResult)
+			end
+		end
+
+		return IsHooked[3]
+	end
+
+	return (OldIndex)(self, Index)
+end))
+
+local OldNamecall
+OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+	local Arguments = {...}
+
+	local Namecallmethod = getnamecallmethod()
+	local __NamecallHooks = rawget(rawget(getgenv().HookMT, "Hooks"), "__namecall")
+	if checkcaller() and tostring(Namecallmethod) then
+		local lowered = string.lower(tostring(Namecallmethod))
+		if lowered == "sethook" or lowered == "hook" then
+			rawset(__NamecallHooks, self, type(__NamecallHooks[self]) == "table" and __NamecallHooks[self] or {})
+			if type(Arguments[1]) == "nil" or type(Arguments[2]) ~= "function" then
+				return string.format("Invalid Usage! example usage: workspace:%s( EventName -> string, function, etc, ValueToReturn -> (function, boolean, value, etc/anything) )", Namecallmethod)
+			end
+
+			__NamecallHooks[self][Arguments[1]] = Arguments[2]
+			return "Successfully __namecall hooked!"
+		elseif lowered == "removehook" or lowered == "deletehook" or lowered == "destroyhook" or lowered == "resethook" or lowered == "rmvhook" or lowered == "unhook" then
+			rawset(__NamecallHooks, self, type(__NamecallHooks[self]) == "table" and __NamecallHooks[self] or {})
+			if not Arguments[1] then
+				return string.format("Invalid Usage! example usage: workspace:%s( EventName )", Namecallmethod)
+			end
+
+			__NamecallHooks[self][Arguments[1]] = nil
+			return "Successfully removed __namecall hooked!"
+		end
+	end
+
+	local IndexTable = rawget(__NamecallHooks, self)
+	if type(IndexTable) == "table" then
+		for Index, IndexFound in next, IndexTable do
+			if type(IndexFound) == "function" then 
+				local EndResult = nil
+				local Success, Result = pcall(IndexFound, function(...)
+					EndResult = {...}
+				end, self, function()
+					return (OldNamecall)(self, table.unpack(Arguments))
+				end, ...)
+
+				if type(EndResult) == "table" then  
+					return OldNamecall(self, table.unpack(EndResult))
+				end
+
+				if Success and type(Result) ~= "nil" then
+					return (OldNamecall)(self, Result)
+				end
+			elseif type(IndexFound) == "nil" or type(IndexFound) then
+				return (OldNamecall)(self, table.unpack(Arguments))
+			elseif type(IndexFound) ~= "nil" and IndexFound ~= getEmpty() and IndexFound ~= _getEmpty() then
+				return OldNamecall(self, IndexFound)
+			end
+		end
+	end
+
+	return (OldNamecall)(self, table.unpack(Arguments))
+end))
+
+local OldNewIndex
+OldNewIndex = hookmetamethod(game, "__newindex", newcclosure(function(self, Index, NewIndex, ...)
+	local Arguments = {...}
+	local IsLocked = rawget(rawget(rawget(getgenv().HookMT, "Hooks"), "__locked"), self)
+	if type(IsLocked) ~= "nil" and type(IsLocked[2]) == "string" and type(IsLocked[3]) ~= "nil" and typeof(self) == "Instance" and typeof(IsLocked[1]) == "Instance" and (self == IsLocked[1]) and string.lower(string.format("%s.%s", IsLocked[1]:GetFullName(), IsLocked[2])) == string.lower(string.format("%s.%s", self:GetFullName(), tostring(typeof(Index) == "Instance" and Index:GetFullName() or Index))) then
+		return OldNewIndex(self, Index, IsLocked[3], ...)
+	end
+
+	return (OldNewIndex)(self, Index, NewIndex, table.unpack(Arguments)) 
+end))
